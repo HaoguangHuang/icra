@@ -1,0 +1,119 @@
+%%调用ICRA_kinfu所有模块代码的脚本
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+clear all;
+close all;
+
+%512*256*512
+%% 参数
+VOLUMEX = 512; VOLUMEY =256; VOLUMEZ = 512; VOLUME_SIZE = 13;
+W = 360;    H = 96;
+fileNum = 10;    series = 3;
+rfx = 500;    rfy = 100;
+
+%kitii的64线雷达数据
+% lidar_j_DeviationAngle = 0.08 * pi /180;
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%下面的参数都是float
+setKSearch = 50;    setSearchRadius = 0.5;   setMu = 20;  setMaximumNearestNeighbors = 50;
+setMaximumSurfaceAngle = pi;     setMinimumAngle = 1/4*pi;   setMaximumAngle = 2/3*pi;
+
+
+%模块开关
+module_1 =1;
+module_2 = 0;
+module_3 = 0;
+module_4 = 0;
+module_5 = 0;
+
+
+
+%% 模块一：show_fusion_process
+%输入：.mat格式的雷达数据
+%输出：.txt格式的（fileNum*7）行的transformation数据；png格式的深度图（单位mm）；png格式的权值图
+if module_1
+show_fusion_process_with_weightMap_for64(rfx, rfy, W, H, fileNum, series);
+disp('模块一【show_fusion_process】完成');
+end
+
+%% 模块二：png2pcd
+%输入：.png格式的深度图(单位mm)
+%输出：.pcd格式的深度图（单位mm）
+if module_2
+png2pcd_afterInterpolate(rfx, rfy, W, H, fileNum, series);
+disp('模块二【png2pcd】完成');
+end
+
+%% 模块三：kinfu
+%输入：.pcd格式的深度图（共fileNum帧）
+%输出：.pcd格式的重建点云（一帧，ascii格式）
+oni_file_address = 'E:\Code\ICRA_dir\inputData_fromKinectV1\input_oni_File\1.oni';
+if module_3
+dos(['E:\Code\vs2010\ICRA-kinfu\bin\pcl_kinfu_app_debug.exe -oni ', oni_file_address, ...
+    ' -VOLUMEX ', num2str(VOLUMEX), ...
+    ' -VOLUMEY ', num2str(VOLUMEY), ...
+    ' -VOLUMEZ ', num2str(VOLUMEZ), ...
+    ' -VOLUME_SIZE ', num2str(VOLUME_SIZE), ...
+    ' -W ', num2str(W), ...
+    ' -H ', num2str(H), ...
+    ' -fileNum ', num2str(fileNum), ...
+    ' -series ', num2str(series), ...
+    ' -rfx ', num2str(rfx), ...
+    ' -rfy ', num2str(rfy) ...
+    ]);
+disp('模块三【kinfu】完成');
+end
+
+%% 模块四：把kinfu提取到的点云（以及网格）放回到每帧在雷达世界坐标中的位置
+%输入：.pcd格式的重建点云（一帧，ascii格式）; .txt格式的（fileNum*7）行的transformation数据；
+%输出：.pcd格式的点云（fileNum帧）；.ply格式的网格（fileNum个）
+
+
+fileName_input_pcd = ['pointCloud_extracted_from_tsdf_rfx_', num2str(rfx), ...
+    '_rfy_', num2str(rfy), '_W_', num2str(W), '_H_', num2str(H), '_VOLUMEX_', num2str(VOLUMEX), ... 
+    '_VOLUMEY_', num2str(VOLUMEY), '_VOLUMEZ_', num2str(VOLUMEZ), '_VOLUME_SIZE_', num2str(VOLUME_SIZE), ...
+    '_fileNum_', num2str(fileNum), '_series_', num2str(series), '_asii.pcd'];
+fileName_input_txt  = ['Transformation_withCalib_rfx_', num2str(rfx), '_rfy_', num2str(rfy), '_W_', num2str(W), ...
+    '_H_', num2str(H), '_fileNum_', num2str(fileNum), '_series_', num2str(series), '.txt'];
+
+if module_4
+dos(['E:\Code\ICRA_dir\code\vs\getPLYFileShow\build\Debug\get_show_ply.exe -pcd ', fileName_input_pcd, ...
+    ' -txt ', fileName_input_txt, ...
+    ' -VOLUMEX ', num2str(VOLUMEX), ...
+    ' -VOLUMEY ', num2str(VOLUMEY), ...
+    ' -VOLUMEZ ', num2str(VOLUMEZ), ...
+    ' -VOLUME_SIZE ', num2str(VOLUME_SIZE), ...
+    ' -W ', num2str(W), ...
+    ' -H ', num2str(H), ...
+    ' -fileNum ', num2str(fileNum), ...
+    ' -series ', num2str(series), ...
+    ' -rfx ', num2str(rfx), ...
+    ' -rfy ', num2str(rfy), ...
+    ' -setKSearch ', num2str(setKSearch), ...
+    ' -setSearchRadius ', num2str(setSearchRadius), ...
+    ' -setMu ', num2str(setMu), ...
+    ' -setMaximumNearestNeighbors ', num2str(setMaximumNearestNeighbors), ...
+    ' -setMaximumSurfaceAngle ', num2str(setMaximumSurfaceAngle), ...
+    ' -setMinimumAngle ', num2str(setMinimumAngle), ...
+    ' -setMaximumAngle ', num2str(setMaximumAngle)...
+    ]);
+disp('模块四【把kinfu提取到的点云（以及网格）放回到每帧在雷达世界坐标中的位置】完成');
+end
+
+%% 模块五：pcl_viewer_debug可视化所有在雷达世界坐标上的点云模型
+fileName_viewer_PCD = []; %用于把所有可视化的pcd文件名拼接成一个字符串
+fileName_output_PCD = [];%struct，存放所有可视化的pcd文件的名字
+
+if module_5
+    for i = 1:fileNum
+        fileName_output_PCD(i).data = ['E:\Code\ICRA_dir\outputData\pointCloud_model_of_every_frame_in_lidar_coordinate_PCD\pointCloud_inLidarCoo_rfx_', num2str(rfx), '_rfy_', num2str(rfy), '_W_', num2str(W), '_H_', num2str(H), ...
+            '_VOLUMEX_', num2str(VOLUMEX), '_VOLUMEY_', num2str(VOLUMEY), '_VOLUMEZ_', num2str(VOLUMEZ), '_VOLUME_SIZE_', ...
+            num2str(VOLUME_SIZE), '_fileNum_', num2str(fileNum), '_', num2str(i), '_series_', num2str(series), '.pcd'];
+        fileName_viewer_PCD = [fileName_viewer_PCD, ' ', fileName_output_PCD(i).data];
+    end
+    dos(['E:\Code\vs2010\pcl\bin\pcl_viewer_debug.exe', fileName_viewer_PCD]);
+    disp('模块五【pcl_viewer_debug可视化所有在雷达世界坐标上的点云模型】完成');
+end
+
+
+
